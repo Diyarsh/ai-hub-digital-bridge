@@ -13,6 +13,8 @@ interface ChatCompletionOptions {
   temperature?: number;
   maxTokens?: number;
   systemPrompt?: string;
+  /** When false, errors are thrown instead of returning demo mock responses */
+  allowMock?: boolean;
 }
 
 interface ChatResponse {
@@ -34,6 +36,42 @@ const getApiConfig = () => {
   return { apiKey, apiBaseUrl, provider };
 };
 
+export function isAiApiConfigured(): boolean {
+  return Boolean(getApiConfig().apiKey);
+}
+
+export function getAiProviderSummary(): {
+  configured: boolean;
+  model: string;
+  label: string;
+} {
+  const { apiKey, apiBaseUrl, provider } = getApiConfig();
+  const model = import.meta.env.VITE_AI_MODEL || "gpt-3.5-turbo";
+  const host = (() => {
+    try {
+      return new URL(apiBaseUrl).hostname;
+    } catch {
+      return apiBaseUrl;
+    }
+  })();
+
+  let label = provider;
+  if (host.includes("groq.com")) label = "Groq";
+  else if (host.includes("deepseek.com")) label = "DeepSeek";
+  else if (host.includes("openai.com")) label = "OpenAI";
+  else if (provider === "custom") label = host;
+
+  return { configured: Boolean(apiKey), model, label };
+}
+
+function getChatCompletionsUrl(apiBaseUrl: string): string {
+  if (import.meta.env.DEV) {
+    return "/api/ai/chat/completions";
+  }
+  const base = apiBaseUrl.replace(/\/$/, "");
+  return `${base}/chat/completions`;
+}
+
 /**
  * Send chat message to AI model
  */
@@ -42,9 +80,15 @@ export async function sendChatMessage(
   options: ChatCompletionOptions = {}
 ): Promise<ChatResponse> {
   const { apiKey, apiBaseUrl, provider } = getApiConfig();
+  const allowMock = options.allowMock !== false;
   
   // If no API key is configured, return mock response for demo
   if (!apiKey) {
+    if (!allowMock) {
+      throw new Error(
+        "AI API не настроен. Добавьте VITE_OPENAI_API_KEY в файл .env для работы переводчика."
+      );
+    }
     console.warn('No AI API key configured. Using mock response. Add VITE_OPENAI_API_KEY to .env file for real AI responses.');
     // Simulate network delay so the loading/stop button is visible
     await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
@@ -77,6 +121,10 @@ export async function sendChatMessage(
   } catch (error: any) {
     console.error('AI API Error:', error);
     
+    if (!allowMock) {
+      throw error instanceof Error ? error : new Error(error?.message || 'AI API error');
+    }
+    
     // Return mock response on network errors for graceful degradation
     if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError') || error.name === 'TypeError') {
       console.warn('Network error detected. Falling back to mock response.');
@@ -104,7 +152,7 @@ async function sendOpenAICompatibleRequest(
   messages: ChatMessage[],
   options: { model: string; temperature: number; maxTokens: number }
 ): Promise<ChatResponse> {
-  const response = await fetch(`${apiBaseUrl}/chat/completions`, {
+  const response = await fetch(getChatCompletionsUrl(apiBaseUrl), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -342,8 +390,8 @@ GDPR (General Data Protection Regulation) — это регламент Евро
 Уточните, пожалуйста, что именно вы хотите создать — это поможет дать более конкретные рекомендации!`;
   }
   
-  // Chatbot related
-  if (query.includes('чат-бот') || query.includes('chatbot') || query.includes('бот') || query.includes('nlp')) {
+  // Chatbot related — whole words only (avoid matching "обработка", "работает", etc.)
+  if (/\b(чат-бот|chatbot|чатбот)\b/i.test(query) || /\bnlp\b/i.test(query)) {
     return `## Разработка чат-бота с использованием NLP
 
 Отличный выбор! Чат-боты с обработкой естественного языка (NLP) — мощный инструмент для автоматизации клиентского сервиса.

@@ -68,7 +68,7 @@ export function NodePalette({
   };
 
   return (
-    <div className="w-72 border-r border-border bg-card flex flex-col">
+    <div className="w-full h-full border-r border-border bg-card flex flex-col">
       <div className="p-4 border-b border-border">
         <h3 className="font-semibold text-sm mb-2">Node Palette</h3>
         <div className="relative">

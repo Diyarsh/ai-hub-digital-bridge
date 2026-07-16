@@ -23,7 +23,8 @@ import {
   Users,
   Mic,
   FileCheck,
-  Presentation
+  Presentation,
+  Wrench,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { PageHeader } from "@/components/PageHeader";
@@ -32,7 +33,9 @@ import { useEffect, useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { TranslatorPlatform } from "@/components/translator/TranslatorPlatform";
 
+type StudioSection = "agents" | "tools";
 type AgentCategory = "all" | "language" | "assistant" | "documents" | "code" | "industrial";
 type AgentType = "agent" | "developer";
 
@@ -131,7 +134,7 @@ const agents: Agent[] = [
   {
     id: "Translator",
     name: "Переводчик",
-    description: "AI-сервис для быстрого и точного перевода текстов между RUS / KAZ / ENG с сохранением смысла, терминологии и делового стиля. Подходит для корпоративных документов.",
+    description: "Платформа перевода документов: загрузка DOCX/PDF, правка сегментов, глоссарий и утверждение перевода (RUS / KAZ / ENG).",
     category: ["language"],
     type: "agent",
     instructions: "Профессиональный переводчик. Обеспечивай точный перевод с сохранением контекста и стиля оригинала.",
@@ -139,6 +142,21 @@ const agents: Agent[] = [
     tags: ["RUS", "KAZ", "ENG"],
     isLocal: true,
     icon: Languages,
+    gradient: "from-primary/20 via-primary/10 to-transparent",
+    iconColor: "text-primary",
+  },
+  {
+    id: "Translator-2",
+    name: "Переводчик 2.0",
+    description: "Документный режим: перевод с сохранением структуры, цельный editable-документ и сверка оригинал/перевод (как DeepL Document).",
+    category: ["language"],
+    type: "agent",
+    instructions: "Профессиональный переводчик документов. Сохраняй структуру и форматирование, переводи на целевой язык целиком.",
+    placeholder: "Загрузи документ для перевода в документном режиме",
+    tags: ["Документ", "WYSIWYG", "KAZ"],
+    isLocal: true,
+    icon: FileText,
+    featured: true,
     gradient: "from-primary/20 via-primary/10 to-transparent",
     iconColor: "text-primary",
   },
@@ -226,6 +244,7 @@ const categories: { key: AgentCategory; label: string; count: number; icon: Luci
 export default function AIStudio3() {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const [selectedSection, setSelectedSection] = useState<StudioSection>("agents");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<AgentCategory>("all");
   const [selectedType, setSelectedType] = useState<AgentType>("agent");
@@ -289,6 +308,15 @@ export default function AIStudio3() {
         (e.target as HTMLElement).closest('[role="dialog"]')) {
       return;
     }
+    // Переводчик — платформа документов, не чат
+    if (agent.id === "Translator") {
+      navigate("/agents/translator");
+      return;
+    }
+    if (agent.id === "Translator-2") {
+      navigate("/agents/translator-2");
+      return;
+    }
     navigate('/ai-studio-3-chat', {
       state: {
         agent: agent.name,
@@ -300,20 +328,85 @@ export default function AIStudio3() {
   };
   
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       <PageHeader 
         title="AI-Studio"
       />
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden relative">
+      <main className="flex-1 overflow-hidden relative min-h-0">
         {/* Decorative background */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-32 -left-32 w-[500px] h-[500px] bg-primary/6 rounded-full blur-3xl animate-breathe" />
           <div className="absolute top-1/2 -right-20 w-[400px] h-[400px] bg-accent/5 rounded-full blur-3xl animate-breathe" style={{ animationDelay: '2s' }} />
           <div className="absolute -bottom-20 left-1/3 w-[350px] h-[350px] bg-primary/4 rounded-full blur-3xl animate-breathe" style={{ animationDelay: '3s' }} />
         </div>
-        <ScrollArea className="h-full relative z-10">
+        <div className="h-full relative z-10 flex flex-col min-h-0">
+          <div className="flex-shrink-0 border-b border-border/60 bg-background/90 backdrop-blur-sm">
+            <div className="max-w-7xl mx-auto px-6 py-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Sparkles className="h-4 w-4" />
+                <span>{t("ai-studio.section")}</span>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant={selectedSection === "agents" && selectedType === "agent" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => {
+                    setSelectedSection("agents");
+                    setSelectedType("agent");
+                  }}
+                  className={cn(
+                    "transition-all duration-200",
+                    selectedSection === "agents" && selectedType === "agent"
+                      ? "ring-2 ring-primary ring-offset-2 shadow-lg"
+                      : "hover:bg-muted"
+                  )}
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  {t("ai-studio.agents")} ({categoryCounts.all})
+                </Button>
+                <Button
+                  variant={selectedSection === "agents" && selectedType === "developer" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => {
+                    setSelectedSection("agents");
+                    setSelectedType("developer");
+                  }}
+                  className={cn(
+                    "transition-all duration-200",
+                    selectedSection === "agents" && selectedType === "developer"
+                      ? "ring-2 ring-primary ring-offset-2 shadow-lg"
+                      : "hover:bg-muted"
+                  )}
+                >
+                  <Code className="h-4 w-4 mr-2" />
+                  {t("ai-studio.developers")} ({agents.filter((a) => a.type === "developer").length})
+                </Button>
+                <Button
+                  variant={selectedSection === "tools" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setSelectedSection("tools")}
+                  className={cn(
+                    "transition-all duration-200",
+                    selectedSection === "tools"
+                      ? "ring-2 ring-primary ring-offset-2 shadow-lg"
+                      : "hover:bg-muted"
+                  )}
+                >
+                  <Wrench className="h-4 w-4 mr-2" />
+                  {t("ai-studio.tools")}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {selectedSection === "tools" ? (
+            <div className="flex-1 min-h-0 max-w-7xl w-full mx-auto px-6 py-4">
+              <TranslatorPlatform />
+            </div>
+          ) : (
+        <ScrollArea className="flex-1 min-h-0 relative">
           <div className="max-w-7xl mx-auto space-y-6 p-6">
           {/* Search Section */}
           <div className="relative">
@@ -360,44 +453,6 @@ export default function AIStudio3() {
                   </Badge>
                 );
               })}
-            </div>
-          </div>
-
-          {/* Tabs Section */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Sparkles className="h-4 w-4" />
-              <span>Тип агентов</span>
-            </div>
-            <div className="flex gap-3">
-              <Button
-                variant={selectedType === "agent" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setSelectedType("agent")}
-                className={cn(
-                  "transition-all duration-200",
-                  selectedType === "agent" 
-                    ? "ring-2 ring-primary ring-offset-2 shadow-lg" 
-                    : "hover:bg-muted"
-                )}
-              >
-                <Users className="h-4 w-4 mr-2" />
-                {t('ai-studio.agents')} ({categoryCounts.all})
-              </Button>
-              <Button
-                variant={selectedType === "developer" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setSelectedType("developer")}
-                className={cn(
-                  "transition-all duration-200",
-                  selectedType === "developer" 
-                    ? "ring-2 ring-primary ring-offset-2 shadow-lg" 
-                    : "hover:bg-muted"
-                )}
-              >
-                <Code className="h-4 w-4 mr-2" />
-                {t('ai-studio.developers')} ({agents.filter(a => a.type === "developer").length})
-              </Button>
             </div>
           </div>
 
@@ -518,6 +573,8 @@ export default function AIStudio3() {
           )}
           </div>
         </ScrollArea>
+          )}
+        </div>
       </main>
     </div>
   );

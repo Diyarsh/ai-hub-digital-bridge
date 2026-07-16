@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DatasetManager, Dataset } from "@/modules/laboratory2/data/components/DatasetManager";
 import { DatasetService } from "@/modules/laboratory2/data/services/dataset.service";
+import { LabAgentsStudio } from "@/components/lab/LabAgentsStudio";
 export default function Lab() {
   const {
     t
@@ -24,19 +25,6 @@ export default function Lab() {
   const [activeTab, setActiveTab] = useState("datasets");
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
-    triggers: true,
-    llm: true,
-    knowledge: false,
-    tools: false,
-    memory: false,
-    guardrails: false,
-    eval: false,
-    actions: false
-  });
-  const [showDebugConsole, setShowDebugConsole] = useState(false);
-  const [debugTab, setDebugTab] = useState("logs");
 
   // Require developer mode to access Lab
   useEffect(() => {
@@ -44,13 +32,6 @@ export default function Lab() {
       navigate('/dashboard');
     }
   }, [isDeveloperMode, navigate]);
-
-  const toggleCategory = (category: string) => {
-    setExpandedCategories(prev => ({
-      ...prev,
-      [category]: !prev[category]
-    }));
-  };
 
   const handleSelectDataset = (dataset: Dataset) => {
     setSelectedDataset(dataset);
@@ -147,185 +128,21 @@ export default function Lab() {
       setDatasets(validDatasets.length > 0 ? validDatasets : storedDatasets);
     }
   }, []);
-  const nodeCategories = [{
-    key: 'triggers',
-    title: 'ТРИГГЕРЫ',
-    nodes: [{
-      icon: Zap,
-      name: 'Webhook',
-      description: 'HTTP триггер'
-    }, {
-      icon: CalendarDays,
-      name: 'Расписание',
-      description: 'Cron триггер'
-    }, {
-      icon: Slack,
-      name: 'Slack Events',
-      description: 'События Slack'
-    }, {
-      icon: Upload,
-      name: 'File Upload',
-      description: 'Загрузка файла'
-    }, {
-      icon: Bot,
-      name: 'Dashboard Button',
-      description: 'Кнопка дашборда'
-    }]
-  }, {
-    key: 'llm',
-    title: 'LLM / CHAT',
-    nodes: [{
-      icon: MessageSquare,
-      name: 'Chat GPT',
-      description: 'OpenAI модель'
-    }, {
-      icon: MessageSquare,
-      name: 'Claude',
-      description: 'Anthropic модель'
-    }, {
-      icon: Brain,
-      name: 'Gemini',
-      description: 'Google модель'
-    }, {
-      icon: Code,
-      name: 'System Prompt',
-      description: 'Системный промпт'
-    }, {
-      icon: TestTube,
-      name: 'Few-shot',
-      description: 'Примеры'
-    }]
-  }, {
-    key: 'knowledge',
-    title: 'ЗНАНИЯ',
-    nodes: [{
-      icon: Search,
-      name: 'RAG Search',
-      description: 'Поиск по базе'
-    }, {
-      icon: Database,
-      name: 'Vector DB',
-      description: 'Векторная БД'
-    }, {
-      icon: FileText,
-      name: 'Document',
-      description: 'Документы'
-    }, {
-      icon: Globe,
-      name: 'Web Scraper',
-      description: 'Веб парсер'
-    }, {
-      icon: Sparkles,
-      name: 'Embeddings',
-      description: 'Векторизация'
-    }]
-  }, {
-    key: 'tools',
-    title: 'ИНСТРУМЕНТЫ',
-    nodes: [{
-      icon: Network,
-      name: 'HTTP Request',
-      description: 'API запрос'
-    }, {
-      icon: Database,
-      name: 'SQL Query',
-      description: 'SQL запрос'
-    }, {
-      icon: Code,
-      name: 'Python Script',
-      description: 'Python код'
-    }, {
-      icon: Mail,
-      name: 'Email',
-      description: 'Отправка почты'
-    }, {
-      icon: Github,
-      name: 'Git Actions',
-      description: 'Git операции'
-    }]
-  }, {
-    key: 'memory',
-    title: 'ПАМЯТЬ',
-    nodes: [{
-      icon: Brain,
-      name: 'Short Memory',
-      description: 'Краткосрочная'
-    }, {
-      icon: Database,
-      name: 'Long Memory',
-      description: 'Долгосрочная'
-    }, {
-      icon: Users,
-      name: 'Session Store',
-      description: 'Сессия'
-    }]
-  }, {
-    key: 'guardrails',
-    title: 'БЕЗОПАСНОСТЬ',
-    nodes: [{
-      icon: Shield,
-      name: 'PII Masking',
-      description: 'Маскировка данных'
-    }, {
-      icon: AlertTriangle,
-      name: 'Content Filter',
-      description: 'Фильтр контента'
-    }, {
-      icon: Lock,
-      name: 'Rate Limits',
-      description: 'Лимиты запросов'
-    }]
-  }, {
-    key: 'eval',
-    title: 'МОНИТОРИНГ',
-    nodes: [{
-      icon: Activity,
-      name: 'Logging',
-      description: 'Логирование'
-    }, {
-      icon: BarChart3,
-      name: 'Metrics',
-      description: 'Метрики'
-    }, {
-      icon: Star,
-      name: 'Feedback',
-      description: 'Обратная связь'
-    }]
-  }, {
-    key: 'actions',
-    title: 'ДЕЙСТВИЯ',
-    nodes: [{
-      icon: Globe,
-      name: 'REST API',
-      description: 'REST эндпоинт'
-    }, {
-      icon: MessageSquare,
-      name: 'Chat Widget',
-      description: 'Виджет чата'
-    }, {
-      icon: Slack,
-      name: 'Slack Bot',
-      description: 'Slack бот'
-    }, {
-      icon: Share2,
-      name: 'Webhook Out',
-      description: 'Исходящий вебхук'
-    }]
-  }];
   return <div className="flex flex-col h-full">
       <PageHeader title={t('lab.title')} subtitle={t('lab.subtitle')} />
 
       {/* Main Content */}
       <main className="flex-1 p-6">
-        <div className="max-w-7xl mx-auto">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <div className="max-w-7xl mx-auto">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="datasets">Датасеты</TabsTrigger>
               <TabsTrigger value="agents">Agents-Studio</TabsTrigger>
               <TabsTrigger value="data">ML-Studio</TabsTrigger>
             </TabsList>
+          </div>
 
-            <TabsContent value="datasets" className="mt-6">
+          <TabsContent value="datasets" className="mt-6 max-w-7xl mx-auto">
               <DatasetManager 
                 datasets={datasets}
                 onSelectDataset={handleSelectDataset}
@@ -333,252 +150,11 @@ export default function Lab() {
               />
             </TabsContent>
 
-            <TabsContent value="agents" className="mt-6">
-              <div className="space-y-6">
-                {/* Monitoring Section for Agents */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Мониторинг агентов</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 items-stretch">
-                    <Card className="h-full">
-                      <CardContent className="p-4 h-full">
-                         <div className="flex items-center gap-2">
-                           <Activity className="h-5 w-5 text-primary" />
-                           <span className="font-medium">Активные агенты</span>
-                         </div>
-                        <div className="text-2xl font-bold mt-2">2</div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="h-full">
-                      <CardContent className="p-4 h-full">
-                         <div className="flex items-center gap-2">
-                           <Clock className="h-5 w-5 text-primary" />
-                           <span className="font-medium">Среднее время ответа</span>
-                         </div>
-                        <div className="text-2xl font-bold mt-2">667ms</div>
-                      </CardContent>
-                    </Card>
-                    <Card className="h-full">
-                      <CardContent className="p-4 h-full">
-                         <div className="flex items-center gap-2">
-                           <Zap className="h-5 w-5 text-primary" />
-                           <span className="font-medium">Всего токенов</span>
-                         </div>
-                        <div className="text-2xl font-bold mt-2">77K</div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
-
-                {/* Agent Studio */}
-                <div className="flex flex-col gap-4 h-[700px]">
-                  <div className="flex gap-4 flex-1">
-                  {/* Left Sidebar - Node Library */}
-                  <div className="w-80 bg-card border rounded-lg overflow-hidden flex flex-col">
-                    <div className="p-4 border-b">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-semibold">Библиотека узлов</h3>
-                        <Button size="sm" className="bg-primary">
-                          <Plus className="h-4 w-4 mr-2" />
-                          Создать флоу
-                        </Button>
-                      </div>
-                      <div className="relative">
-                        <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
-                        <Input placeholder="Поиск узлов..." className="pl-9 h-8" />
-                      </div>
-                    </div>
-                    
-                    <ScrollArea className="flex-1 p-4">
-                      <div className="space-y-3">
-                        {nodeCategories.map(category => <div key={category.key}>
-                            <button onClick={() => toggleCategory(category.key)} className="flex items-center gap-2 w-full text-left p-2 rounded">
-                              {expandedCategories[category.key] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                {category.title}
-                              </span>
-                            </button>
-                            
-                            {expandedCategories[category.key] && <div className="ml-5 space-y-1">
-                                {category.nodes.map((node, index) => <div key={index} className="flex items-center gap-3 p-2 rounded cursor-grab active:cursor-grabbing group" draggable>
-                                    <node.icon className="h-4 w-4 text-primary flex-shrink-0" />
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-sm font-medium text-foreground">
-                                        {node.name}
-                                      </div>
-                                      <div className="text-xs text-muted-foreground truncate">
-                                        {node.description}
-                                      </div>
-                                    </div>
-                                  </div>)}
-                              </div>}
-                          </div>)}
-                      </div>
-                    </ScrollArea>
-                  </div>
-
-                  {/* Center Canvas */}
-                  <div className="flex-1 bg-card border rounded-lg overflow-hidden flex flex-col">
-                    <div className="p-4 border-b bg-muted/30">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <h3 className="font-semibold">Визуальный редактор</h3>
-                          <Badge variant="secondary" className="text-xs">
-                            Нет активных узлов
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" title="Сохранить">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" title="Масштаб">
-                            <ZoomIn className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" title="По размеру">
-                            <Maximize2 className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" title="Отладка" onClick={() => setShowDebugConsole(!showDebugConsole)}>
-                            <Terminal className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" className="bg-primary">
-                            <Play className="h-4 w-4 mr-2" />
-                            Запустить
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex-1 relative bg-gradient-to-br from-background to-muted/20">
-                      {/* Grid pattern */}
-                      <div className="absolute inset-0 opacity-30" style={{
-                      backgroundImage: `
-                            linear-gradient(to right, hsl(var(--border)) 1px, transparent 1px),
-                            linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px)
-                          `,
-                      backgroundSize: '20px 20px'
-                    }} />
-                      
-                      {/* Empty state */}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-center">
-                          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Workflow className="h-8 w-8 text-primary" />
-                          </div>
-                          <h4 className="text-lg font-semibold mb-2">Создайте свой первый флоу</h4>
-                          <p className="text-muted-foreground mb-4 max-w-md">
-                            Перетащите узлы из библиотеки слева или выберите готовый шаблон
-                          </p>
-                          <div className="flex gap-2 justify-center">
-                            <Button variant="outline" size="sm">
-                              <Palette className="h-4 w-4 mr-2" />
-                              Шаблоны
-                            </Button>
-                            <Button size="sm">
-                              <Plus className="h-4 w-4 mr-2" />
-                              Начать с пустого
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Sidebar - Node Settings */}
-                  <div className="w-80 bg-card border rounded-lg overflow-hidden flex flex-col">
-                    <div className="p-4 border-b">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold">
-                          {selectedNode ? 'Настройки узла' : 'Свойства'}
-                        </h3>
-                        <Button variant="ghost" size="sm">
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="flex-1 p-4">
-                      {selectedNode ? <div className="space-y-4">
-                          <div>
-                            <label className="text-sm font-medium">Название узла</label>
-                            <Input value={selectedNode} className="mt-1" />
-                          </div>
-                          <div>
-                            <label className="text-sm font-medium">Описание</label>
-                            <Textarea placeholder="Опишите функцию узла..." className="mt-1" rows={3} />
-                          </div>
-                          <div>
-                            <label className="text-sm font-medium">Параметры</label>
-                            <div className="mt-2 space-y-2">
-                              <Input placeholder="Ключ" />
-                              <Input placeholder="Значение" />
-                            </div>
-                          </div>
-                        </div> : <div className="text-center text-muted-foreground">
-                          <MapPin className="h-8 w-8 mx-auto mb-3 opacity-50" />
-                          <p className="text-sm">Выберите узел на холсте для настройки его параметров</p>
-                        </div>}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Debug Console (collapsible) */}
-                {showDebugConsole && <div className="h-48 bg-card border rounded-lg overflow-hidden flex flex-col">
-                    <div className="p-3 border-b bg-muted/30">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <h4 className="font-medium">Консоль отладки</h4>
-                          <div className="flex items-center gap-1">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <span className="text-xs text-muted-foreground">Активна</span>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="sm" onClick={() => setShowDebugConsole(false)}>
-                          <XCircle className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 mt-2">
-                        <Button variant={debugTab === "logs" ? "secondary" : "ghost"} size="sm" onClick={() => setDebugTab("logs")}>
-                          <FileText className="h-3 w-3 mr-1" />
-                          Логи
-                        </Button>
-                        <Button variant={debugTab === "context" ? "secondary" : "ghost"} size="sm" onClick={() => setDebugTab("context")}>
-                          <Database className="h-3 w-3 mr-1" />
-                          Контекст
-                        </Button>
-                        <Button variant={debugTab === "errors" ? "secondary" : "ghost"} size="sm" onClick={() => setDebugTab("errors")}>
-                          <Bug className="h-3 w-3 mr-1" />
-                          Ошибки
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <ScrollArea className="flex-1 p-3">
-                      {debugTab === "logs" && <div className="space-y-2 font-mono text-sm">
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <span className="text-xs">12:34:56</span>
-                            <CheckCircle2 className="h-3 w-3 text-green-500" />
-                            <span>Флоу инициализирован</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <span className="text-xs">12:34:57</span>
-                            <AlertCircle className="h-3 w-3 text-yellow-500" />
-                            <span>Ожидание входных данных...</span>
-                          </div>
-                        </div>}
-                      {debugTab === "context" && <div className="text-sm text-muted-foreground">
-                          <p>Контекст выполнения будет отображаться здесь</p>
-                        </div>}
-                      {debugTab === "errors" && <div className="text-sm text-muted-foreground">
-                          <p>Ошибки будут отображаться здесь</p>
-                        </div>}
-                    </ScrollArea>
-                  </div>}
-                </div>
-              </div>
+            <TabsContent value="agents" className="mt-4">
+              <LabAgentsStudio selectedDataset={selectedDataset} />
             </TabsContent>
 
-            <TabsContent value="data" className="mt-6">
+            <TabsContent value="data" className="mt-6 max-w-7xl mx-auto">
               <div className="space-y-6">
                 {/* Monitoring Section for ML */}
                 <div>
@@ -1037,7 +613,6 @@ export default function Lab() {
               </div>
             </TabsContent>
           </Tabs>
-        </div>
       </main>
     </div>;
 }

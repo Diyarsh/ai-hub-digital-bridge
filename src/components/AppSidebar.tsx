@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { MessageCircle, Sparkles, FolderOpen, History, Terminal, ChevronRight, ChevronsLeft, ChevronsRight, User, Settings, Clock, Shield, LogOut, Palette, HelpCircle, Workflow } from "lucide-react";
+import { MessageCircle, Sparkles, FolderOpen, History, Terminal, ChevronRight, ChevronsLeft, ChevronsRight, User, Settings, Clock, Shield, LogOut, Palette, HelpCircle } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDeveloperMode } from "@/contexts/DeveloperModeContext";
 import { Button } from "@/components/ui/button";
@@ -95,10 +95,6 @@ const menuItems = [{
   title: "sidebar.lab",
   url: "/lab",
   icon: Terminal
-}, {
-  title: "sidebar.lab2",
-  url: "/laboratory2",
-  icon: Workflow
 }, {
   title: "sidebar.history",
   url: "/history",
@@ -264,8 +260,8 @@ export function AppSidebar() {
       <SidebarContent className="px-2 py-2">
         <SidebarMenu className="space-y-0.5">
           {menuItems.filter(item => {
-            // Show Lab and Laboratory2.0 only when Dev Mode is enabled
-            if ((item.url === "/lab" || item.url === "/laboratory2") && !isDeveloperMode) {
+            // Show Lab only when Dev Mode is enabled
+            if (item.url === "/lab" && !isDeveloperMode) {
               return false;
             }
             return true;

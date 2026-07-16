@@ -52,6 +52,24 @@ VITE_AI_MODEL=your-model-name
 - `gpt-4-turbo` - улучшенная версия GPT-4
 - `deepseek-chat` - альтернатива от DeepSeek
 
+## Переводчик (AI-Studio → Инструменты)
+
+Рекомендуемый **бесплатный** вариант для локальной разработки — **Groq**:
+
+```bash
+cp .env.example .env
+```
+
+```env
+VITE_OPENAI_API_KEY=gsk_...
+VITE_OPENAI_API_BASE_URL=https://api.groq.com/openai/v1
+VITE_AI_MODEL=llama-3.3-70b-versatile
+```
+
+Ключ: https://console.groq.com/keys
+
+В dev-режиме запросы идут через Vite-прокси `/api/ai` (без CORS-ошибок в браузере).
+
 ## Без API ключа
 
 Если API ключ не настроен, чат будет работать в демо-режиме с моковыми ответами.

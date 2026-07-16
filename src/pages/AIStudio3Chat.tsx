@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, ChevronLeft, ChevronRight, X, File, FileDown } from "lucide-react";
@@ -18,6 +18,8 @@ import { MessageBubble } from "@/components/chat/MessageBubble";
 import { Disclaimer } from "@/components/chat/Disclaimer";
 import { FileDropOverlay } from "@/components/chat/FileDropOverlay";
 import { PresentationAgentPanel } from "@/components/presentation/PresentationAgentPanel";
+import { TranslatorPlatform } from "@/components/translator/TranslatorPlatform";
+import { TranslatorDocumentPlatform } from "@/components/translator/TranslatorDocumentPlatform";
 
 export interface AIStudio3ChatProps {
   /** Прямой вход по `/agents/presentation` без state из каталога */
@@ -41,20 +43,59 @@ export default function AIStudio3Chat({
   } = useLanguage();
   const { showToast } = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
   const navState = (location.state || {}) as ChatNavState;
+  const storedAgent =
+    typeof sessionStorage !== "undefined"
+      ? sessionStorage.getItem("aihub-last-agent")
+      : null;
   const agent = presentationMode
     ? "Создатель презентаций"
-    : navState.agent;
+    : navState.agent || storedAgent || undefined;
+
+  useEffect(() => {
+    if (navState.agent) {
+      sessionStorage.setItem("aihub-last-agent", navState.agent);
+    }
+    if (navState.agentId) {
+      sessionStorage.setItem("aihub-last-agent-id", navState.agentId);
+    }
+  }, [navState.agent, navState.agentId]);
+
   const placeholder =
     navState.placeholder ??
     (presentationMode || agent === "Создатель презентаций"
       ? "Обсуди структуру презентации или задай вопрос по брендингу…"
       : undefined);
   const initialMessage = navState.initialMessage;
+  const storedAgentId =
+    typeof sessionStorage !== "undefined"
+      ? sessionStorage.getItem("aihub-last-agent-id")
+      : null;
   const isPresentationAgent =
     presentationMode ||
     navState.agentId === "Presentation-Agent" ||
     agent === "Создатель презентаций";
+  const isTranslatorAgent =
+    navState.agentId === "Translator" ||
+    navState.agentId === "Translator-2" ||
+    agent === "Переводчик" ||
+    agent === "Переводчик 2.0" ||
+    agent === "Translation Master" ||
+    agent === "Translator" ||
+    (!navState.agent && storedAgentId === "Translator") ||
+    (!navState.agent && storedAgentId === "Translator-2");
+
+  // Переводчик — документный дашборд, не чат
+  useEffect(() => {
+    if (presentationMode) return;
+    if (!isTranslatorAgent) return;
+    const target =
+      navState.agentId === "Translator-2" || agent === "Переводчик 2.0"
+        ? "/agents/translator-2"
+        : "/agents/translator";
+    navigate(target, { replace: true });
+  }, [isTranslatorAgent, navigate, presentationMode, navState.agentId, agent]);
   const [message, setMessage] = useState("");
   const [hasInitialized, setHasInitialized] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -393,6 +434,23 @@ ${fullAnswer}
       setHasInitialized(true);
     }, 0);
   }
+
+  if (isTranslatorAgent) {
+    const isV2 =
+      navState.agentId === "Translator-2" || agent === "Переводчик 2.0";
+    return (
+      <div className="flex flex-col h-full min-h-0">
+        <PageHeader
+          title="AI-Studio"
+          subtitle={isV2 ? "Переводчик 2.0 · документный режим" : "Платформа перевода документов"}
+        />
+        <main className="flex-1 min-h-0 p-4 md:p-6">
+          {isV2 ? <TranslatorDocumentPlatform /> : <TranslatorPlatform />}
+        </main>
+      </div>
+    );
+  }
+
   return <div className="flex flex-col h-screen">
       <PageHeader title="AI-Studio" subtitle={isPresentationAgent ? "Создатель презентаций · мастер и экспорт в этом чате" : undefined} />
       <main className="flex-1 flex min-h-0">

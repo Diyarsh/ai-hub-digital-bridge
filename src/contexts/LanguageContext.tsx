@@ -107,6 +107,8 @@ const translations = {
     'ai-studio.code': 'Код',
     'ai-studio.industrial': 'Өнеркәсіптік',
     'ai-studio.agents': 'Агенттер',
+    'ai-studio.tools': 'Құралдар',
+    'ai-studio.section': 'Бөлім',
     'ai-studio.developers': 'Әзірлеушілерден',
     'ai-studio.use': 'Пайдалану',
     
@@ -276,6 +278,8 @@ const translations = {
     'ai-studio.code': 'Код',
     'ai-studio.industrial': 'Промышленные',
     'ai-studio.agents': 'Агенты',
+    'ai-studio.tools': 'Инструменты',
+    'ai-studio.section': 'Раздел',
     'ai-studio.developers': 'От Разработчиков',
     'ai-studio.use': 'Использовать',
     
@@ -446,6 +450,8 @@ const translations = {
     'ai-studio.code': 'Code',
     'ai-studio.industrial': 'Industrial',
     'ai-studio.agents': 'Agents',
+    'ai-studio.tools': 'Tools',
+    'ai-studio.section': 'Section',
     'ai-studio.developers': 'From Developers',
     'ai-studio.use': 'Use',
     

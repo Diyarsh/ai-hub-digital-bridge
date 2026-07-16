@@ -305,13 +305,19 @@ export default function Dashboard() {
                         return (
                           <Card 
                             key={agent.id}
-                            onClick={() => navigate('/ai-studio-3-chat', { 
+                            onClick={() => {
+                              if (agent.id === "Translation Master") {
+                                navigate("/agents/translator");
+                                return;
+                              }
+                              navigate('/ai-studio-3-chat', { 
                               state: { 
                                 agent: agent.name, 
                                 instructions: agent.instructions,
                                 placeholder: agent.placeholder 
                               } 
-                            })} 
+                            });
+                            }} 
                             className={cn(
                               "card-glow relative overflow-hidden transition-all duration-300 cursor-pointer group",
                               "bg-card/60 backdrop-blur-sm border-border/30",

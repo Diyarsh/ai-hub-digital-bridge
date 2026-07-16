@@ -45,6 +45,7 @@ interface WorkflowCanvasProps {
   executingNode?: string | null;
   isEmpty?: boolean;
   onAddNodeClick?: (nodeId: string) => void;
+  hideEmptyState?: boolean;
 }
 
 export function WorkflowCanvas({
@@ -67,6 +68,7 @@ export function WorkflowCanvas({
   executingNode = null,
   isEmpty = false,
   onAddNodeClick,
+  hideEmptyState = false,
 }: WorkflowCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<{
@@ -347,7 +349,7 @@ export function WorkflowCanvas({
       })}
 
       {/* Empty State - n8n style */}
-      {isEmpty && (
+      {isEmpty && !hideEmptyState && (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="flex items-center gap-6">
             <Button
