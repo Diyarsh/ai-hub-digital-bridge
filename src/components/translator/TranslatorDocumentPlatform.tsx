@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import {
   BookOpen,
+  Bookmark,
   Check,
   CheckCircle2,
   Columns2,
   Download,
+  FilePlus,
   FileText,
   Languages,
+  Layers,
   Loader2,
   Play,
   RefreshCw,
@@ -79,7 +82,7 @@ interface EditableBlock extends DocumentBlock {
   origin?: TranslationOrigin | null;
   translating?: boolean;
   tableRowsTranslated?: string[][];
-  /** Which fragments are Memory vs LLM (for 75–99% blocks) */
+  /** Which fragments are Memory vs AI (for 75–99% blocks) */
   translationParts?: TextPart[];
   /** Source spans that came from Memory (glossary / TM terms) */
   sourceMemorySpans?: string[];
@@ -135,10 +138,32 @@ function splitByPhrases(text: string, memoryPhrases: string[]): TextPart[] {
 
 /**
  * Block bands by % of text from Memory:
- * 100% — Memory (green)
- * 75–99% — Гибрид (blue; click = fragment split)
- * <75% — Новый (yellow; full LLM generation)
+ * 100% — Memory (emerald)
+ * 75–99% — Гибрид (teal — between Memory green & AI yellow)
+ * <75% — AI (gold yellow)
  */
+
+/** Chip / highlight / frame — three clearly separated hues */
+const BAND_COLORS = {
+  memory: {
+    text: "#047857",
+    bg: "#D1FAE5",
+    border: "#34D399",
+    frame: "#059669",
+  },
+  hybrid: {
+    text: "#0E7490",
+    bg: "#CFFAFE",
+    border: "#22D3EE",
+    frame: "#0891B2",
+  },
+  ai: {
+    text: "#A16207",
+    bg: "#FEF08A",
+    border: "#EAB308",
+    frame: "#CA8A04",
+  },
+} as const;
 
 function memoryPctFromParts(parts: TextPart[] | undefined, fallbackText = ""): number {
   if (parts?.length) {
@@ -166,10 +191,10 @@ function memoryBandFromBlock(block: EditableBlock): MemoryBand {
   return memoryBandFromPct(memoryPctFromBlock(block));
 }
 
-function memoryPctColor(pct: number): string {
-  if (pct >= 100) return "#047857";
-  if (pct >= 75) return "#1D4ED8";
-  return "#CA8A04";
+function bandBorderColor(band: MemoryBand): string {
+  if (band === "exact") return BAND_COLORS.memory.frame;
+  if (band === "hybrid") return BAND_COLORS.hybrid.frame;
+  return BAND_COLORS.ai.frame;
 }
 
 function buildDemoMemoryParts(
@@ -231,10 +256,11 @@ function applyDemoMemoryCase(
   );
 }
 
-/** Thin outline only — no block background wash */
-function blockActiveStyle(isActive: boolean): CSSProperties | undefined {
+/** Thin outline by band: Memory green · Hybrid teal · AI yellow */
+function blockActiveStyle(isActive: boolean, band?: MemoryBand): CSSProperties | undefined {
   if (!isActive) return undefined;
-  return { boxShadow: `inset 0 0 0 2px ${BRONZE.mid}` };
+  const color = band ? bandBorderColor(band) : BRONZE.mid;
+  return { boxShadow: `inset 0 0 0 2px ${color}` };
 }
 
 function applyTranslationMeta(
@@ -262,10 +288,8 @@ function applyTranslationMeta(
 function partsToHtml(parts: TextPart[]) {
   return parts
     .map((p) => {
-      const style =
-        p.from === "memory"
-          ? "background:#BBF7D0;color:#14532D;border-radius:2px;padding:0 2px"
-          : "background:#BFDBFE;color:#1E3A8A;border-radius:2px;padding:0 2px";
+      const c = p.from === "memory" ? BAND_COLORS.memory : BAND_COLORS.ai;
+      const style = `background:${c.bg};color:${c.text};border-radius:2px;padding:0 2px`;
       const escaped = p.text
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -368,30 +392,22 @@ function HybridBlockEditor({
 function highlightSourceText(source: string, memorySpans: string[] | undefined) {
   if (!memorySpans?.length) return source;
   const parts = splitByPhrases(source, memorySpans);
-  return parts.map((p, i) =>
-    p.from === "memory" ? (
+  return parts.map((p, i) => {
+    const c = p.from === "memory" ? BAND_COLORS.memory : BAND_COLORS.ai;
+    return (
       <mark
         key={i}
         className="rounded-sm px-0.5"
-        style={{ background: "#BBF7D0", color: "#14532D" }}
-        title="Memory"
+        style={{ background: c.bg, color: c.text }}
+        title={p.from === "memory" ? "Memory" : "AI"}
       >
         {p.text}
       </mark>
-    ) : (
-      <mark
-        key={i}
-        className="rounded-sm px-0.5"
-        style={{ background: "#BFDBFE", color: "#1E3A8A" }}
-        title="AI"
-      >
-        {p.text}
-      </mark>
-    )
-  );
+    );
+  });
 }
 
-/** For <75% (Новый): only mark what exists in Memory; rest stays plain */
+/** For <75% (AI): only mark what exists in Memory; rest stays plain */
 function highlightSourceMemoryOnly(source: string, memorySpans: string[] | undefined) {
   if (!memorySpans?.length) return source;
   const parts = splitByPhrases(source, memorySpans);
@@ -400,7 +416,7 @@ function highlightSourceMemoryOnly(source: string, memorySpans: string[] | undef
       <mark
         key={i}
         className="rounded-sm px-0.5"
-        style={{ background: "#BBF7D0", color: "#14532D" }}
+        style={{ background: BAND_COLORS.memory.bg, color: BAND_COLORS.memory.text }}
         title="Уже есть в Memory"
       >
         {p.text}
@@ -485,13 +501,13 @@ function MatchBadge({
   return (
     <span
       className="text-[11px] font-semibold tabular-nums shrink-0"
-      style={{ color: memoryPctColor(memoryPct) }}
+      style={{ color: "#047857" }}
       title={
         band === "exact"
           ? "100% совпадение с Memory"
           : band === "hybrid"
             ? `${memoryPct}% совпадение с Memory (гибрид)`
-            : `${memoryPct}% совпадение с Memory (новый)`
+            : `${memoryPct}% совпадение с Memory (AI)`
       }
     >
       {memoryPct}%
@@ -989,23 +1005,6 @@ export function TranslatorDocumentPlatform() {
                 </Button>
               </div>
             </section>
-
-            <div className="grid sm:grid-cols-3 gap-3 text-sm">
-              {[
-                { t: "Форматирование", d: "Заголовки и абзацы как в исходнике" },
-                { t: "Правка на месте", d: "Клик по тексту — редактируйте сразу" },
-                { t: "Цельный обзор", d: "Читайте отчёт целиком, не блоками" },
-              ].map((item) => (
-                <div
-                  key={item.t}
-                  className="bg-white rounded-lg border p-3"
-                  style={{ borderColor: "#EDE6DC" }}
-                >
-                  <div className="font-medium text-slate-800 text-sm">{item.t}</div>
-                  <div className="text-xs text-slate-500 mt-1">{item.d}</div>
-                </div>
-              ))}
-            </div>
           </div>
         ) : (
           <div className="max-w-[1400px] mx-auto space-y-3 w-full">
@@ -1119,9 +1118,10 @@ export function TranslatorDocumentPlatform() {
                     Утвердить
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="h-7 text-[11px] text-slate-500 px-2"
+                    className="h-7 text-[11px] text-slate-600 px-2.5"
+                    title="Загрузить другой документ"
                     onClick={() => {
                       abortRef.current?.abort();
                       setBlocks([]);
@@ -1132,52 +1132,82 @@ export function TranslatorDocumentPlatform() {
                       setActiveId(null);
                     }}
                   >
-                    Очистить
+                    <FilePlus className="h-3.5 w-3.5 mr-1" />
+                    Новый файл
                   </Button>
                 </div>
               </div>
 
-              {/* Slim status strip */}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] pt-1 border-t" style={{ borderColor: "#F1E9DE" }}>
-                <span style={{ color: "#047857" }}>
-                  Memory · {bandCounts.exact}
+              {/* Status chips */}
+              <div
+                className="flex flex-wrap items-center gap-2 pt-2 border-t"
+                style={{ borderColor: "#F1E9DE" }}
+              >
+                <span
+                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium border"
+                  style={{
+                    color: BAND_COLORS.memory.text,
+                    background: BAND_COLORS.memory.bg,
+                    borderColor: BAND_COLORS.memory.border,
+                  }}
+                  title="100% из Translation Memory"
+                >
+                  <Bookmark className="h-3.5 w-3.5" />
+                  Memory
+                  <span className="tabular-nums font-semibold">{bandCounts.exact}</span>
                 </span>
-                <span style={{ color: "#1D4ED8" }}>
-                  Гибрид · {bandCounts.hybrid}
+                <span
+                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium border"
+                  style={{
+                    color: BAND_COLORS.hybrid.text,
+                    background: BAND_COLORS.hybrid.bg,
+                    borderColor: BAND_COLORS.hybrid.border,
+                  }}
+                  title="75–99% Memory + AI"
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  Гибрид
+                  <span className="tabular-nums font-semibold">{bandCounts.hybrid}</span>
                 </span>
-                <span style={{ color: "#CA8A04" }}>
-                  Новый · {bandCounts.llm}
+                <span
+                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium border"
+                  style={{
+                    color: BAND_COLORS.ai.text,
+                    background: BAND_COLORS.ai.bg,
+                    borderColor: BAND_COLORS.ai.border,
+                  }}
+                  title="<75% Memory — полностью AI"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  AI
+                  <span className="tabular-nums font-semibold">{bandCounts.llm}</span>
                 </span>
-                <span className="text-slate-300">|</span>
-                <span className="text-slate-500">
-                  ✓ {stats.approved}/{stats.total}
-                </span>
-                <span className="text-slate-300">|</span>
-                <span className="text-slate-400">
-                  курсор в блоке: гибрид — зелёный Memory / синий AI · новый — слева только Memory · Enter — утвердить
+                <span
+                  className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium border bg-white text-slate-600"
+                  style={{ borderColor: "#EDE6DC" }}
+                  title="Утверждено / всего"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#16A34A" }} />
+                  <span className="tabular-nums font-semibold">
+                    {stats.approved}/{stats.total}
+                  </span>
                 </span>
               </div>
             </div>
 
             {/* Progress */}
             {isTranslating && progress && (
-              <div className="flex items-center gap-3">
+              <div
+                className="h-1.5 w-full rounded-full overflow-hidden"
+                style={{ background: "#EDE6DC" }}
+              >
                 <div
-                  className="h-1.5 flex-1 rounded-full overflow-hidden"
-                  style={{ background: "#EDE6DC" }}
-                >
-                  <div
-                    className="h-full transition-all duration-300"
-                    style={{
-                      width: `${(progress.done / Math.max(progress.total, 1)) * 100}%`,
-                      background: BRONZE.deep,
-                    }}
-                  />
-                </div>
-                <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={stopTranslation}>
-                  <Square className="h-3 w-3 mr-1 fill-current" />
-                  Остановить
-                </Button>
+                  className="h-full transition-all duration-300"
+                  style={{
+                    width: `${(progress.done / Math.max(progress.total, 1)) * 100}%`,
+                    background: BRONZE.deep,
+                  }}
+                />
               </div>
             )}
 
@@ -1212,7 +1242,7 @@ export function TranslatorDocumentPlatform() {
                             key={`src-${block.id}`}
                             id={`src-${block.id}`}
                             className="rounded-lg -mx-2 px-2 py-1 mb-2 cursor-pointer bg-white"
-                            style={blockActiveStyle(isActive)}
+                            style={blockActiveStyle(isActive, band)}
                             onClick={() => {
                               document.getElementById(`trg-${block.id}`)?.scrollIntoView({
                                 behavior: "smooth",
@@ -1234,7 +1264,7 @@ export function TranslatorDocumentPlatform() {
                         <div
                           key={`src-${block.id}`}
                           className="rounded-lg -mx-2 px-2 py-1 mb-1 cursor-pointer bg-white"
-                          style={blockActiveStyle(isActive)}
+                          style={blockActiveStyle(isActive, band)}
                           onClick={() => {
                             document.getElementById(`trg-${block.id}`)?.scrollIntoView({
                               behavior: "smooth",
@@ -1304,7 +1334,7 @@ export function TranslatorDocumentPlatform() {
                           key={block.id}
                           id={`trg-${block.id}`}
                           className="group relative -mx-2 px-2 py-1 mb-2 rounded-lg cursor-pointer bg-white"
-                          style={blockActiveStyle(isActive)}
+                          style={blockActiveStyle(isActive, band)}
                           onClick={() => {
                             setActiveId(block.id);
                             if (viewMode === "split") {
@@ -1364,7 +1394,7 @@ export function TranslatorDocumentPlatform() {
                         key={block.id}
                         id={`trg-${block.id}`}
                         className="group relative rounded-lg -mx-2 px-2 py-1 mb-1 cursor-pointer bg-white"
-                        style={blockActiveStyle(isActive)}
+                        style={blockActiveStyle(isActive, band)}
                         onClick={() => {
                           setActiveId(block.id);
                           if (viewMode === "split") {
