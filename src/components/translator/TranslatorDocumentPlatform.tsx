@@ -4,10 +4,12 @@ import {
   Bookmark,
   Check,
   CheckCircle2,
+  Clock3,
   Columns2,
   Download,
   FilePlus,
   FileText,
+  History,
   Languages,
   Layers,
   Loader2,
@@ -15,8 +17,10 @@ import {
   RefreshCw,
   Sparkles,
   Square,
+  Trash2,
   Upload,
 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -45,6 +49,18 @@ import {
   lookupMemory,
   rememberApprovedSegments,
 } from "./translation-memory";
+import {
+  deleteTranslatorDocumentHistoryItem,
+  getTranslatorDocumentHistoryItem,
+  loadTranslatorDocumentHistory,
+  saveTranslatorDocumentHistoryItem,
+  TRANSLATOR_HISTORY_KEY,
+  TRANSLATOR_HISTORY_UPDATED_EVENT,
+  type TranslatorDocumentHistoryItem,
+  type TranslatorHistoryBlock,
+  type TranslatorHistoryPart,
+  type TranslatorHistoryPair,
+} from "./translator-document-history";
 
 const BRONZE = {
   deep: "#A17436",
@@ -54,9 +70,9 @@ const BRONZE = {
   surface: "#FBF8F4",
 };
 
-type LangPair = "RUS→KAZ" | "KAZ→RUS" | "RUS→ENG" | "ENG→RUS";
+type LangPair = TranslatorHistoryPair;
 type ViewMode = "document" | "split";
-type Screen = "workspace" | "glossary";
+type Screen = "workspace" | "glossary" | "history";
 type MemoryBand = "exact" | "hybrid" | "llm";
 
 /** Demo targets so green / blue / yellow cases rotate across blocks */
@@ -74,21 +90,11 @@ const PAIR_OPTIONS: {
   { value: "ENG→RUS", label: "Английский → Русский", from: "ENG", to: "RUS" },
 ];
 
-interface EditableBlock extends DocumentBlock {
-  translation: string;
-  approved: boolean;
-  match: SegmentMatch;
-  confidence: number;
-  origin?: TranslationOrigin | null;
+interface EditableBlock extends TranslatorHistoryBlock {
   translating?: boolean;
-  tableRowsTranslated?: string[][];
-  /** Which fragments are Memory vs AI (for 75–99% blocks) */
-  translationParts?: TextPart[];
-  /** Source spans that came from Memory (glossary / TM terms) */
-  sourceMemorySpans?: string[];
 }
 
-type TextPart = { text: string; from: "memory" | "llm" };
+type TextPart = TranslatorHistoryPart;
 
 function splitByPhrases(text: string, memoryPhrases: string[]): TextPart[] {
   if (!text) return [];
@@ -498,10 +504,17 @@ function MatchBadge({
   memoryPct: number;
   band: MemoryBand;
 }) {
+  const color =
+    band === "exact"
+      ? BAND_COLORS.memory.text
+      : band === "hybrid"
+        ? BAND_COLORS.hybrid.text
+        : BAND_COLORS.ai.text;
+
   return (
     <span
       className="text-[11px] font-semibold tabular-nums shrink-0"
-      style={{ color: "#047857" }}
+      style={{ color }}
       title={
         band === "exact"
           ? "100% совпадение с Memory"
@@ -574,11 +587,14 @@ function DocTable({
 
 export function TranslatorDocumentPlatform() {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [documentId, setDocumentId] = useState<string | null>(null);
   const [pair, setPair] = useState<LangPair>("RUS→KAZ");
   const [fileName, setFileName] = useState<string | null>(null);
   const [blocks, setBlocks] = useState<EditableBlock[]>([]);
+  const [history, setHistory] = useState<TranslatorDocumentHistoryItem[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("split");
   const [screen, setScreen] = useState<Screen>("workspace");
   const [glossary, setGlossary] = useState<GlossaryEntry[]>([]);
@@ -589,10 +605,74 @@ export function TranslatorDocumentPlatform() {
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
+  const openSavedDocument = useCallback(
+    (item: TranslatorDocumentHistoryItem) => {
+      abortRef.current?.abort();
+      setDocumentId(item.id);
+      setFileName(item.fileName);
+      setPair(item.pair);
+      setBlocks(item.blocks.map((block) => ({ ...block, translating: false })));
+      setScreen("workspace");
+      setViewMode("split");
+      setIsTranslating(false);
+      setProgress(null);
+      setFocusedId(null);
+      setActiveId(item.blocks[0]?.id ?? null);
+      setSearchParams({ document: item.id });
+    },
+    [setSearchParams]
+  );
+
   useEffect(() => {
     setGlossary(loadGlossary());
     ensureDemoMemory(pair);
   }, [pair]);
+
+  useEffect(() => {
+    const refreshHistory = () => setHistory(loadTranslatorDocumentHistory());
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === TRANSLATOR_HISTORY_KEY) refreshHistory();
+    };
+
+    refreshHistory();
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener(TRANSLATOR_HISTORY_UPDATED_EVENT, refreshHistory);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener(TRANSLATOR_HISTORY_UPDATED_EVENT, refreshHistory);
+    };
+  }, []);
+
+  const requestedDocumentId = searchParams.get("document");
+  const requestedView = searchParams.get("view");
+  useEffect(() => {
+    if (!requestedDocumentId || requestedDocumentId === documentId) return;
+    const item = getTranslatorDocumentHistoryItem(requestedDocumentId);
+    if (item) openSavedDocument(item);
+  }, [documentId, openSavedDocument, requestedDocumentId]);
+
+  useEffect(() => {
+    if (requestedView === "history") setScreen("history");
+  }, [requestedView]);
+
+  useEffect(() => {
+    if (!documentId || !fileName || blocks.length === 0) return;
+    const timer = window.setTimeout(() => {
+      try {
+        saveTranslatorDocumentHistoryItem({
+          id: documentId,
+          fileName,
+          pair,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          blocks: blocks.map(({ translating: _translating, ...block }) => block),
+        });
+      } catch {
+        // Browser storage may be unavailable or full; editing should still continue.
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [blocks, documentId, fileName, pair]);
 
   const persistGlossary = useCallback((next: GlossaryEntry[]) => {
     setGlossary(next);
@@ -790,6 +870,12 @@ export function TranslatorDocumentPlatform() {
           confidence,
         };
       });
+      const nextDocumentId =
+        typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `translator-${Date.now()}`;
+      setDocumentId(nextDocumentId);
+      setSearchParams({ document: nextDocumentId });
       setFileName(file.name);
       setBlocks(editable);
       setScreen("workspace");
@@ -863,6 +949,21 @@ export function TranslatorDocumentPlatform() {
     }
   };
 
+  const deleteHistoryItem = (id: string) => {
+    deleteTranslatorDocumentHistoryItem(id);
+    if (id === documentId) {
+      abortRef.current?.abort();
+      setDocumentId(null);
+      setSearchParams({});
+      setBlocks([]);
+      setFileName(null);
+      setIsTranslating(false);
+      setProgress(null);
+      setFocusedId(null);
+      setActiveId(null);
+    }
+  };
+
   return (
     <div
       className="flex flex-col h-full min-h-0 rounded-xl border overflow-hidden"
@@ -914,11 +1015,103 @@ export function TranslatorDocumentPlatform() {
             <BookOpen className="h-3 w-3" />
             Глоссарий
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-7 gap-1 text-xs px-2.5",
+              screen === "history"
+                ? "border-transparent text-white hover:opacity-90"
+                : "bg-white"
+            )}
+            style={screen === "history" ? { background: BRONZE.deep } : undefined}
+            onClick={() => setScreen("history")}
+          >
+            <History className="h-3 w-3" />
+            История
+          </Button>
         </nav>
       </header>
 
       <div className="flex-1 min-h-0 overflow-auto p-4">
-        {screen === "glossary" ? (
+        {screen === "history" ? (
+          <div className="max-w-5xl mx-auto">
+            <section
+              className="bg-white rounded-xl border shadow-sm overflow-hidden"
+              style={{ borderColor: "#EDE6DC" }}
+            >
+              <div className="px-5 py-4 border-b" style={{ borderColor: "#EDE6DC" }}>
+                <h2 className="text-base font-semibold text-slate-800">История переводов</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Последние документы автоматически сохраняются в этом браузере
+                </p>
+              </div>
+              {history.length === 0 ? (
+                <div className="px-5 py-12 text-center">
+                  <History className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500">История пока пуста</p>
+                </div>
+              ) : (
+                <div className="divide-y" style={{ borderColor: "#F1F5F9" }}>
+                  {history.map((item) => {
+                    const approved = item.blocks.filter((block) => block.approved).length;
+                    const progressPct = item.blocks.length
+                      ? Math.round((approved / item.blocks.length) * 100)
+                      : 0;
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50/70"
+                      >
+                        <div
+                          className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0"
+                          style={{ background: BRONZE.bg, color: BRONZE.deep }}
+                        >
+                          <FileText className="h-4 w-4" />
+                        </div>
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 text-left"
+                          onClick={() => openSavedDocument(item)}
+                        >
+                          <div className="text-sm font-medium text-slate-800 truncate">
+                            {item.fileName}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500 mt-1">
+                            <span>{pairMeta(item.pair).label}</span>
+                            <span>·</span>
+                            <span>{item.blocks.length} абз.</span>
+                            <span>·</span>
+                            <span>проверено {progressPct}%</span>
+                            <span>·</span>
+                            <span className="inline-flex items-center gap-1">
+                              <Clock3 className="h-3 w-3" />
+                              {new Date(item.updatedAt).toLocaleString("ru-RU", {
+                                day: "2-digit",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-slate-400 hover:text-red-600"
+                          title="Удалить из истории"
+                          onClick={() => deleteHistoryItem(item.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+        ) : screen === "glossary" ? (
           <GlossaryView entries={glossary} onChange={persistGlossary} />
         ) : blocks.length === 0 ? (
           <div className="max-w-3xl mx-auto space-y-5">
@@ -1124,6 +1317,8 @@ export function TranslatorDocumentPlatform() {
                     title="Загрузить другой документ"
                     onClick={() => {
                       abortRef.current?.abort();
+                      setDocumentId(null);
+                      setSearchParams({});
                       setBlocks([]);
                       setFileName(null);
                       setIsTranslating(false);

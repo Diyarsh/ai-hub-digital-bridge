@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { MessageCircle, Sparkles, FolderOpen, History, Terminal, ChevronRight, ChevronsLeft, ChevronsRight, User, Settings, Clock, Shield, LogOut, Palette, HelpCircle } from "lucide-react";
+import { MessageCircle, Sparkles, FolderOpen, History, Terminal, ChevronRight, ChevronsLeft, ChevronsRight, User, Settings, Clock, Shield, LogOut, Palette, HelpCircle, Languages } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDeveloperMode } from "@/contexts/DeveloperModeContext";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton, SidebarHeader, useSidebar } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton, SidebarHeader, useSidebar } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useTheme } from "next-themes";
@@ -15,6 +15,12 @@ import samrukKazynaLogo from "@/assets/samruk-kazyna.svg";
 import skLogo from "@/assets/sk-logo.svg";
 import { UserSettingsDialog } from "@/components/UserSettingsDialog";
 import { useAuth } from "@/main/webapp/app/shared/hooks/useAuth";
+import {
+  loadTranslatorDocumentHistory,
+  TRANSLATOR_HISTORY_KEY,
+  TRANSLATOR_HISTORY_UPDATED_EVENT,
+  type TranslatorDocumentHistoryItem,
+} from "@/components/translator/translator-document-history";
 
 // Static history data (same as History.tsx) - B2B Enterprise Platform examples
 const staticHistory = [{
@@ -125,6 +131,7 @@ export function AppSidebar() {
   const { isAdmin, isSuperAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const [dynamicHistory, setDynamicHistory] = useState<Array<{ text: string; time: string; type: string; model: string }>>([]);
+  const [translationHistory, setTranslationHistory] = useState<TranslatorDocumentHistoryItem[]>([]);
 
   // Load history data from localStorage and listen for changes
   useEffect(() => {
@@ -158,7 +165,23 @@ export function AppSidebar() {
     };
   }, []);
 
-  // Merge static and dynamic history, then group by time
+  useEffect(() => {
+    const loadTranslationHistory = () =>
+      setTranslationHistory(loadTranslatorDocumentHistory().slice(0, 7));
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === TRANSLATOR_HISTORY_KEY) loadTranslationHistory();
+    };
+
+    loadTranslationHistory();
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener(TRANSLATOR_HISTORY_UPDATED_EVENT, loadTranslationHistory);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener(TRANSLATOR_HISTORY_UPDATED_EVENT, loadTranslationHistory);
+    };
+  }, []);
+
+  // Merge chats and translated documents into one sidebar history.
   const historyItems = useMemo(() => {
     const merged = [...dynamicHistory.map(i => ({...i, time: '2 часа назад'})), ...staticHistory];
     const sorted = [...merged].sort((a, b) => {
@@ -184,13 +207,23 @@ export function AppSidebar() {
     });
 
     // Group by time period
-    const thisWeek: Array<{ title: string; url: string }> = [];
-    const older: Array<{ title: string; url: string }> = [];
+    type SidebarHistoryItem = {
+      title: string;
+      url: string;
+      kind: "chat" | "translation";
+    };
+    const thisWeek: SidebarHistoryItem[] = translationHistory.map((item) => ({
+      title: item.fileName.length > 35 ? item.fileName.substring(0, 35) + "..." : item.fileName,
+      url: `/agents/translator-2?document=${encodeURIComponent(item.id)}`,
+      kind: "translation",
+    }));
+    const older: SidebarHistoryItem[] = [];
 
-    sorted.slice(0, 8).forEach((item, idx) => {
+    sorted.slice(0, Math.max(0, 8 - thisWeek.length)).forEach((item, idx) => {
       const historyItem = {
         title: item.text.length > 35 ? item.text.substring(0, 35) + '...' : item.text,
-        url: `/history-chat/${idx}`
+        url: `/history-chat/${idx}`,
+        kind: "chat" as const,
       };
       // Group by time period (Russian and English)
       if (item.time.includes('час') || item.time.includes('день') || item.time.includes('недел') || 
@@ -205,7 +238,7 @@ export function AppSidebar() {
       thisWeek,
       older
     };
-  }, [dynamicHistory]);
+  }, [dynamicHistory, translationHistory]);
 
   const isActive = (path: string) => currentPath === path;
   // const { user } = useAuth(); // временно убрать
@@ -325,11 +358,15 @@ export function AppSidebar() {
                           <>
                             {historyItems.thisWeek.map((historyItem, itemIdx) => (
                               <NavLink 
-                                key={itemIdx} 
+                                key={`${historyItem.kind}-${historyItem.url}-${itemIdx}`}
                                 to={historyItem.url} 
-                                className="block px-3 py-1.5 text-sm font-light text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors truncate"
+                                className="flex items-center gap-2 px-3 py-1.5 text-sm font-light text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
+                                title={historyItem.title}
                               >
-                                {historyItem.title}
+                                {historyItem.kind === "translation" && (
+                                  <Languages className="h-3.5 w-3.5 shrink-0" />
+                                )}
+                                <span className="truncate">{historyItem.title}</span>
                               </NavLink>
                             ))}
                           </>
@@ -338,11 +375,15 @@ export function AppSidebar() {
                           <>
                             {historyItems.older.map((historyItem, itemIdx) => (
                               <NavLink 
-                                key={itemIdx} 
+                                key={`${historyItem.kind}-${historyItem.url}-${itemIdx}`}
                                 to={historyItem.url} 
-                                className="block px-3 py-1.5 text-sm font-light text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors truncate"
+                                className="flex items-center gap-2 px-3 py-1.5 text-sm font-light text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
+                                title={historyItem.title}
                               >
-                                {historyItem.title}
+                                {historyItem.kind === "translation" && (
+                                  <Languages className="h-3.5 w-3.5 shrink-0" />
+                                )}
+                                <span className="truncate">{historyItem.title}</span>
                               </NavLink>
                             ))}
                           </>
