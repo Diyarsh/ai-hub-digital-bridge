@@ -4,19 +4,41 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { X } from "lucide-react";
+import { Eye, EyeOff, X } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/shared/components/Toast";
 import { InlineError } from "@/components/alerts/InlineError";
+import { cn } from "@/lib/utils";
 
 interface LoginFormProps {
   onClose: () => void;
   onLogin: () => void;
 }
 
+const AUTH_ACCENT = "#A17436";
+const fieldClass =
+  "h-11 bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-[#A17436]";
+
+type PasswordChecks = {
+  minLength: boolean;
+  uppercase: boolean;
+  digit: boolean;
+  special: boolean;
+};
+
+function getPasswordChecks(password: string): PasswordChecks {
+  return {
+    minLength: password.length >= 12,
+    uppercase: /[A-ZА-ЯӘІҢҒҮҰҚӨҺ]/.test(password),
+    digit: /\d/.test(password),
+    special: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(password),
+  };
+}
+
 export const LoginForm = ({ onClose, onLogin }: LoginFormProps) => {
   const { t } = useLanguage();
   const { showToast } = useToast();
+  const [activeTab, setActiveTab] = useState("login");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [registerUsername, setRegisterUsername] = useState("");
@@ -25,26 +47,32 @@ export const LoginForm = ({ onClose, onLogin }: LoginFormProps) => {
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
   const [registerFirstName, setRegisterFirstName] = useState("");
   const [registerLastName, setRegisterLastName] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [resetEmailOrUsername, setResetEmailOrUsername] = useState("");
-  
-  // Error states for inline validation
+
   const [registerPasswordError, setRegisterPasswordError] = useState("");
   const [registerConfirmPasswordError, setRegisterConfirmPasswordError] = useState("");
+  const [termsError, setTermsError] = useState("");
   const [resetPasswordError, setResetPasswordError] = useState("");
 
-  // Block body scroll when modal is open
+  const passwordChecks = getPasswordChecks(registerPassword);
+  const passwordValid = Object.values(passwordChecks).every(Boolean);
+  const showPasswordHints = passwordFocused || Boolean(registerPasswordError);
+
   useEffect(() => {
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = "unset";
     };
   }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Check for admin credentials
+
     if (loginEmail === "admin" && loginPassword === "admin") {
       onLogin();
       onClose();
@@ -55,43 +83,45 @@ export const LoginForm = ({ onClose, onLogin }: LoginFormProps) => {
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Reset errors
+
     setRegisterPasswordError("");
     setRegisterConfirmPasswordError("");
-    
+    setTermsError("");
+
     let hasError = false;
-    
-    if (registerPassword.length < 6) {
-      setRegisterPasswordError("Пароль должен содержать минимум 6 символов");
+
+    if (!passwordValid) {
+      setRegisterPasswordError(t("auth.passwordInvalid"));
       hasError = true;
     }
-    
+
     if (registerPassword !== registerConfirmPassword) {
-      setRegisterConfirmPasswordError("Пароли не совпадают");
+      setRegisterConfirmPasswordError(t("auth.passwordsMismatch"));
       hasError = true;
     }
-    
-    if (hasError) {
-      return;
+
+    if (!acceptedTerms) {
+      setTermsError(t("auth.termsRequired"));
+      hasError = true;
     }
-    
-    // Simulate successful registration
+
+    if (hasError) return;
+
     showToast("Регистрация успешна! Теперь войдите с admin/admin", "success");
     setLoginEmail("admin");
+    setActiveTab("login");
   };
 
   const handleResetPassword = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     setResetPasswordError("");
-    
+
     if (!resetEmailOrUsername.trim()) {
       setResetPasswordError("Пожалуйста, введите email или имя пользователя");
       return;
     }
-    
-    // Simulate password reset
+
     showToast(`Инструкции по восстановлению пароля отправлены на ${resetEmailOrUsername}`, "success");
     setShowResetPassword(false);
     setResetEmailOrUsername("");
@@ -102,8 +132,8 @@ export const LoginForm = ({ onClose, onLogin }: LoginFormProps) => {
     return (
       <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 overflow-y-auto">
         <div className="min-h-full flex items-center justify-center p-4">
-          <Card className="w-full max-w-md bg-card border-border shadow-card my-8">
-            <CardHeader className="sticky top-0 bg-card z-10 border-b pb-6">
+          <Card className="w-full max-w-md bg-white border-border shadow-card my-8 rounded-2xl">
+            <CardHeader className="sticky top-0 bg-white z-10 border-b pb-6 rounded-t-2xl">
               <Button
                 variant="ghost"
                 size="sm"
@@ -116,16 +146,16 @@ export const LoginForm = ({ onClose, onLogin }: LoginFormProps) => {
                 <X className="h-4 w-4" />
               </Button>
               <CardTitle className="text-xl sm:text-2xl font-bold text-center pr-8">
-                {t('auth.resetPassword.title')}
+                {t("auth.resetPassword.title")}
               </CardTitle>
               <CardDescription className="text-center text-muted-foreground text-sm mt-1">
-                {t('auth.resetPassword.description')}
+                {t("auth.resetPassword.description")}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="reset-email-username">{t('auth.resetPassword.emailOrUsername')}</Label>
+                  <Label htmlFor="reset-email-username">{t("auth.resetPassword.emailOrUsername")}</Label>
                   <Input
                     id="reset-email-username"
                     type="text"
@@ -134,26 +164,30 @@ export const LoginForm = ({ onClose, onLogin }: LoginFormProps) => {
                       setResetEmailOrUsername(e.target.value);
                       if (resetPasswordError) setResetPasswordError("");
                     }}
-                    placeholder={t('auth.resetPassword.emailOrUsername')}
+                    placeholder={t("auth.resetPassword.emailOrUsername")}
                     required
-                    className={`bg-muted border-border ${resetPasswordError ? "border-destructive" : ""}`}
+                    className={cn(fieldClass, resetPasswordError && "border-destructive")}
                   />
                   {resetPasswordError && <InlineError message={resetPasswordError} />}
                 </div>
                 <div className="flex gap-3">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     className="flex-1"
                     onClick={() => {
                       setShowResetPassword(false);
                       setResetEmailOrUsername("");
                     }}
                   >
-                    {t('auth.resetPassword.goBack')}
+                    {t("auth.resetPassword.goBack")}
                   </Button>
-                  <Button type="submit" variant="hero" className="flex-1">
-                    {t('auth.resetPassword.submit')}
+                  <Button
+                    type="submit"
+                    className="flex-1 text-white hover:opacity-90"
+                    style={{ background: AUTH_ACCENT }}
+                  >
+                    {t("auth.resetPassword.submit")}
                   </Button>
                 </div>
               </form>
@@ -164,185 +198,286 @@ export const LoginForm = ({ onClose, onLogin }: LoginFormProps) => {
     );
   }
 
+  const subtitle =
+    activeTab === "register" ? t("auth.registerSubtitle") : t("auth.subtitle");
+
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 overflow-y-auto">
       <div className="min-h-full flex items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-card border-border shadow-card my-8">
-          <CardHeader className="sticky top-0 bg-card z-10 border-b pb-6">
+        <Card className="w-full max-w-[440px] bg-white border-border shadow-card my-8 rounded-2xl">
+          <CardHeader className="relative pb-4 pt-6">
             <Button
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="absolute right-2 top-2 h-8 w-8 p-0"
+              className="absolute right-2 top-2 h-8 w-8 p-0 text-slate-500"
             >
               <X className="h-4 w-4" />
             </Button>
-            <CardTitle className="text-xl sm:text-2xl font-bold text-center pr-8">
-              {t('auth.title')}
+            <CardTitle className="text-2xl sm:text-[28px] font-bold text-center tracking-tight text-slate-900">
+              {t("auth.title")}
             </CardTitle>
-            <CardDescription className="text-center text-muted-foreground text-sm mt-1">
-              {t('auth.subtitle')}
+            <CardDescription className="text-center text-slate-500 text-sm mt-1">
+              {subtitle}
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-6">
-            <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6 h-11 p-1">
-                <TabsTrigger value="login" className="w-full h-full text-sm sm:text-base leading-none">{t('auth.loginTab')}</TabsTrigger>
-                <TabsTrigger value="register" className="w-full h-full text-sm sm:text-base leading-none">{t('auth.registerTab')}</TabsTrigger>
+          <CardContent className="pt-2 pb-6">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6 h-11 p-1 rounded-full bg-slate-100">
+                <TabsTrigger
+                  value="login"
+                  className="w-full h-full rounded-full text-sm leading-none data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                >
+                  {t("auth.loginTab")}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="register"
+                  className="w-full h-full rounded-full text-sm leading-none data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                >
+                  {t("auth.registerTab")}
+                </TabsTrigger>
               </TabsList>
-            
-            <TabsContent value="login" className="mt-0">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email" className="text-sm">{t('auth.username')}</Label>
-                  <Input
-                    id="login-email"
-                    type="text"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    required
-                    className="bg-muted border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password" className="text-sm">{t('auth.password')}</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    required
-                    className="bg-muted border-border"
-                  />
-                </div>
-                <Button type="submit" variant="hero" className="w-full">
-                  {t('auth.loginButton')}
-                </Button>
-                <div className="text-center">
-                  <Button 
-                    type="button" 
-                    variant="link" 
-                    className="text-primary text-sm"
-                    onClick={() => setShowResetPassword(true)}
+
+              <TabsContent value="login" className="mt-0">
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email" className="text-sm font-semibold text-slate-900">
+                      {t("auth.username")}
+                    </Label>
+                    <Input
+                      id="login-email"
+                      type="text"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      required
+                      className={fieldClass}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password" className="text-sm font-semibold text-slate-900">
+                      {t("auth.password")}
+                    </Label>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                      className={fieldClass}
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full h-11 text-white hover:opacity-90"
+                    style={{ background: AUTH_ACCENT }}
                   >
-                    {t('auth.forgotPassword')}
+                    {t("auth.loginButton")}
                   </Button>
-                </div>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="register" className="mt-0">
-              <div className="mb-4 text-xs sm:text-sm text-muted-foreground">
-                {t('auth.requiredFields')}
-              </div>
-              <form onSubmit={handleRegister} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="register-username" className="text-sm">
-                    {t('auth.username')} <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="register-username"
-                    type="text"
-                    value={registerUsername}
-                    onChange={(e) => setRegisterUsername(e.target.value)}
-                    required
-                    className="bg-muted border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="register-password" className="text-sm">
-                    {t('auth.password')} <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="register-password"
-                    type="password"
-                    value={registerPassword}
-                    onChange={(e) => {
-                      setRegisterPassword(e.target.value);
-                      if (registerPasswordError) setRegisterPasswordError("");
-                    }}
-                    required
-                    className={`bg-muted border-border ${registerPasswordError ? "border-destructive" : ""}`}
-                  />
-                  {registerPasswordError && <InlineError message={registerPasswordError} />}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="register-confirm-password" className="text-sm">
-                    {t('auth.confirmPassword')} <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="register-confirm-password"
-                    type="password"
-                    value={registerConfirmPassword}
-                    onChange={(e) => {
-                      setRegisterConfirmPassword(e.target.value);
-                      if (registerConfirmPasswordError) setRegisterConfirmPasswordError("");
-                    }}
-                    required
-                    className={`bg-muted border-border ${registerConfirmPasswordError ? "border-destructive" : ""}`}
-                  />
-                  {registerConfirmPasswordError && <InlineError message={registerConfirmPasswordError} />}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="register-email" className="text-sm">
-                    {t('auth.email')} <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="register-email"
-                    type="email"
-                    value={registerEmail}
-                    onChange={(e) => setRegisterEmail(e.target.value)}
-                    required
-                    className="bg-muted border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="register-first-name" className="text-sm">
-                    {t('auth.firstName')} <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="register-first-name"
-                    type="text"
-                    value={registerFirstName}
-                    onChange={(e) => setRegisterFirstName(e.target.value)}
-                    required
-                    className="bg-muted border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="register-last-name" className="text-sm">
-                    {t('auth.lastName')} <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="register-last-name"
-                    type="text"
-                    value={registerLastName}
-                    onChange={(e) => setRegisterLastName(e.target.value)}
-                    required
-                    className="bg-muted border-border"
-                  />
-                </div>
-                <Button type="submit" variant="hero" className="w-full">
-                  {t('auth.registerButton')}
-                </Button>
-                <div className="text-center">
-                  <Button 
-                    type="button" 
-                    variant="link" 
-                    className="text-primary text-sm"
-                    onClick={() => {
-                      const loginTab = document.querySelector('[value="login"]') as HTMLElement;
-                      loginTab?.click();
-                    }}
+                  <div className="text-center">
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="text-sm"
+                      style={{ color: AUTH_ACCENT }}
+                      onClick={() => setShowResetPassword(true)}
+                    >
+                      {t("auth.forgotPassword")}
+                    </Button>
+                  </div>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="register" className="mt-0">
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="register-username" className="text-sm font-semibold text-slate-900">
+                      {t("auth.username")} <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="register-username"
+                      type="text"
+                      value={registerUsername}
+                      onChange={(e) => setRegisterUsername(e.target.value)}
+                      placeholder={t("auth.usernamePlaceholder")}
+                      required
+                      className={fieldClass}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="register-email" className="text-sm font-semibold text-slate-900">
+                      {t("auth.email")} <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="register-email"
+                      type="email"
+                      value={registerEmail}
+                      onChange={(e) => setRegisterEmail(e.target.value)}
+                      placeholder={t("auth.emailPlaceholder")}
+                      required
+                      className={fieldClass}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="register-first-name" className="text-sm font-semibold text-slate-900">
+                        {t("auth.firstName")} <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="register-first-name"
+                        type="text"
+                        value={registerFirstName}
+                        onChange={(e) => setRegisterFirstName(e.target.value)}
+                        placeholder={t("auth.firstNamePlaceholder")}
+                        required
+                        className={fieldClass}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="register-last-name" className="text-sm font-semibold text-slate-900">
+                        {t("auth.lastName")} <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="register-last-name"
+                        type="text"
+                        value={registerLastName}
+                        onChange={(e) => setRegisterLastName(e.target.value)}
+                        placeholder={t("auth.lastNamePlaceholder")}
+                        required
+                        className={fieldClass}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="register-password" className="text-sm font-semibold text-slate-900">
+                      {t("auth.password")} <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="register-password"
+                        type={showRegisterPassword ? "text" : "password"}
+                        value={registerPassword}
+                        onChange={(e) => {
+                          setRegisterPassword(e.target.value);
+                          if (registerPasswordError) setRegisterPasswordError("");
+                        }}
+                        onFocus={() => setPasswordFocused(true)}
+                        onBlur={() => setPasswordFocused(false)}
+                        placeholder={t("auth.passwordPlaceholder")}
+                        required
+                        className={cn(fieldClass, "pr-10", registerPasswordError && "border-destructive")}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        onClick={() => setShowRegisterPassword((v) => !v)}
+                        aria-label={showRegisterPassword ? "Hide password" : "Show password"}
+                      >
+                        {showRegisterPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {showPasswordHints && (
+                      <div className="text-xs space-y-0.5 pt-0.5">
+                        <p className="text-slate-400">{t("auth.passwordRulesTitle")}</p>
+                        {(
+                          [
+                            ["minLength", "auth.passwordRuleLength"],
+                            ["uppercase", "auth.passwordRuleUppercase"],
+                            ["digit", "auth.passwordRuleDigit"],
+                            ["special", "auth.passwordRuleSpecial"],
+                          ] as const
+                        ).map(([key, labelKey]) => (
+                          <p
+                            key={key}
+                            style={{
+                              color: passwordChecks[key] ? "#059669" : "#A67C72",
+                            }}
+                          >
+                            {t(labelKey)}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {registerPasswordError && <InlineError message={registerPasswordError} />}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="register-confirm-password"
+                      className="text-sm font-semibold text-slate-900"
+                    >
+                      {t("auth.confirmPassword")} <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="register-confirm-password"
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={registerConfirmPassword}
+                        onChange={(e) => {
+                          setRegisterConfirmPassword(e.target.value);
+                          if (registerConfirmPasswordError) setRegisterConfirmPasswordError("");
+                        }}
+                        placeholder={t("auth.confirmPasswordPlaceholder")}
+                        required
+                        className={cn(
+                          fieldClass,
+                          "pr-10",
+                          registerConfirmPasswordError && "border-destructive"
+                        )}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        onClick={() => setShowConfirmPassword((v) => !v)}
+                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {registerConfirmPasswordError && (
+                      <InlineError message={registerConfirmPasswordError} />
+                    )}
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={acceptedTerms}
+                        onChange={(e) => {
+                          setAcceptedTerms(e.target.checked);
+                          if (termsError) setTermsError("");
+                        }}
+                        className="mt-1 h-4 w-4 rounded border-slate-300 accent-[#A17436]"
+                      />
+                      <span className="text-xs leading-relaxed text-slate-600">
+                        {t("auth.termsPrefix")}{" "}
+                        <a href="#" className="underline" style={{ color: AUTH_ACCENT }}>
+                          {t("auth.termsAgreement")}
+                        </a>{" "}
+                        {t("auth.termsAnd")}{" "}
+                        <a href="#" className="underline" style={{ color: AUTH_ACCENT }}>
+                          {t("auth.termsPrivacy")}
+                        </a>
+                      </span>
+                    </label>
+                    {termsError && <InlineError message={termsError} />}
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-11 text-white hover:opacity-90"
+                    style={{ background: AUTH_ACCENT }}
                   >
-                    {t('auth.backToLogin')}
+                    {t("auth.registerButton")}
                   </Button>
-                </div>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
