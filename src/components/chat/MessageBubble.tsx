@@ -3,11 +3,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Edit2, Trash2, Timer, Copy, Check, CheckCircle2, AlertCircle, XCircle } from "lucide-react";
+import { Edit2, Trash2, Timer, Copy, Check, CheckCircle2, AlertCircle, XCircle, CheckCheck } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { formatChatTime } from "@/lib/chat-time";
 import skaiAvatar from "@/assets/skai-ava.png";
 
 interface MessageBubbleProps {
@@ -16,6 +17,7 @@ interface MessageBubbleProps {
   messageId?: string;
   isLoading?: boolean;
   streaming?: boolean;
+  createdAt?: string;
   onEdit?: () => void;
   onDelete?: () => void;
   onCopy?: () => void;
@@ -32,6 +34,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   messageId,
   isLoading,
   streaming,
+  createdAt,
   onEdit,
   onDelete,
   onCopy,
@@ -195,9 +198,27 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           ))}
         </div>
       )}
+
+      {/* Telegram-style time (and status for user) */}
+      {!isLoading && createdAt && (
+        <div
+          className={cn(
+            "mt-1.5 flex items-center justify-end gap-1 select-none",
+            role === "user" ? "text-muted-foreground/80" : "text-muted-foreground/70"
+          )}
+        >
+          <span className="text-[11px] tabular-nums leading-none">
+            {formatChatTime(createdAt)}
+          </span>
+          {role === "user" && (
+            <CheckCheck className="h-3.5 w-3.5 opacity-80" aria-hidden />
+          )}
+        </div>
+      )}
+
       {/* Message Actions for assistant messages */}
       {role === 'assistant' && !isLoading && onCopy && (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-2 flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -211,6 +232,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <p>{copied ? t('message.copied') || 'Скопировано' : t('message.copy')}</p>
             </TooltipContent>
           </Tooltip>
+          {durationMs !== undefined && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Timer size={14} className="text-muted-foreground" />
+              {(durationMs / 1000).toFixed(1)}s
+            </span>
+          )}
         </div>
       )}
       
@@ -350,17 +377,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-
-      {/* Duration for assistant messages */}
-      {role === 'assistant' && !isLoading && durationMs !== undefined && (
-        <div className="mt-3 flex items-center text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <Timer size={14} className="text-muted-foreground" />
-            {(durationMs / 1000).toFixed(1)}s
-          </span>
         </div>
       )}
 

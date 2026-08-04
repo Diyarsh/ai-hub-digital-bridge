@@ -14,6 +14,7 @@ import { FileUpload } from "@/shared/components/Forms/FileUpload";
 import { Badge } from "@/shared/components/Badge";
 import { Disclaimer } from "@/components/chat/Disclaimer";
 import { MessageBubble } from "@/components/chat/MessageBubble";
+import { formatChatDateLabel, getDayKey } from "@/lib/chat-time";
 import { FileDropOverlay } from "@/components/chat/FileDropOverlay";
 import { sendChatMessage } from "@/shared/services/ai.service.ts";
 import { useToast } from "@/shared/components/Toast";
@@ -423,35 +424,51 @@ export default function ProjectChat() {
             <div className="w-full max-w-3xl mx-auto">
               {selected ? (
                 <div className="space-y-4 pb-0">
-                  {selected.messages.map(m => (
-                    <div
-                      key={m.id}
-                      className={m.role === 'user' ? 'flex justify-end' : ''}
-                    >
-                      <MessageBubble
-                        text={m.content || "..."}
-                        role={m.role}
-                        messageId={m.id}
-                        isLoading={!m.content && m.role === 'assistant'}
-                        feedback={m.feedback}
-                        onCopy={m.role === 'assistant' ? () => handleCopy(m.id) : undefined}
-                        onFeedbackChange={(value, reasons, details) => {
-                          if (m.role !== 'assistant') return;
-                          setConversations(prev => prev.map(c => {
-                            if (c.id !== selectedId) return c;
-                            return {
-                              ...c,
-                              messages: c.messages.map(msg => 
-                                msg.id === m.id 
-                                  ? { ...msg, feedback: value || undefined }
-                                  : msg
-                              ),
-                            };
-                          }));
-                        }}
-                      />
-                    </div>
-                  ))}
+                  {selected.messages.map((m, index) => {
+                    const dayKey = m.createdAt ? getDayKey(m.createdAt) : "";
+                    const prevDayKey =
+                      index > 0 && selected.messages[index - 1].createdAt
+                        ? getDayKey(selected.messages[index - 1].createdAt)
+                        : "";
+                    const showDate = Boolean(dayKey && dayKey !== prevDayKey);
+
+                    return (
+                      <div key={m.id}>
+                        {showDate && m.createdAt && (
+                          <div className="flex justify-center my-3">
+                            <span className="text-[11px] font-medium text-muted-foreground/80 px-2.5 py-1 rounded-full bg-muted/70">
+                              {formatChatDateLabel(m.createdAt)}
+                            </span>
+                          </div>
+                        )}
+                        <div className={m.role === 'user' ? 'flex justify-end' : ''}>
+                          <MessageBubble
+                            text={m.content || "..."}
+                            role={m.role}
+                            messageId={m.id}
+                            isLoading={!m.content && m.role === 'assistant'}
+                            createdAt={m.createdAt}
+                            feedback={m.feedback}
+                            onCopy={m.role === 'assistant' ? () => handleCopy(m.id) : undefined}
+                            onFeedbackChange={(value, reasons, details) => {
+                              if (m.role !== 'assistant') return;
+                              setConversations(prev => prev.map(c => {
+                                if (c.id !== selectedId) return c;
+                                return {
+                                  ...c,
+                                  messages: c.messages.map(msg => 
+                                    msg.id === m.id 
+                                      ? { ...msg, feedback: value || undefined }
+                                      : msg
+                                  ),
+                                };
+                              }));
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center py-20">

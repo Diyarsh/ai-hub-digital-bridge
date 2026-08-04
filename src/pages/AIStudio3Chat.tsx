@@ -15,6 +15,7 @@ import { AgentHistorySidebar } from "@/components/AgentHistorySidebar";
 import { AgentChatService } from "@/services/agent-chat.service";
 import { AgentChatMessage } from "@/types/agent-chat";
 import { MessageBubble } from "@/components/chat/MessageBubble";
+import { formatChatDateLabel, getDayKey } from "@/lib/chat-time";
 import { Disclaimer } from "@/components/chat/Disclaimer";
 import { FileDropOverlay } from "@/components/chat/FileDropOverlay";
 import { PresentationAgentPanel } from "@/components/presentation/PresentationAgentPanel";
@@ -100,7 +101,7 @@ export default function AIStudio3Chat({
   const [hasInitialized, setHasInitialized] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isAttachModalOpen, setIsAttachModalOpen] = useState(false);
-  const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; text: string; files?: File[]; isLoading?: boolean; durationMs?: number; feedback?: 'correct' | 'partially-correct' | 'incorrect'; feedbackReasons?: string[]; feedbackDetails?: string; isRegenerated?: boolean }[]>([]);
+  const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; text: string; files?: File[]; isLoading?: boolean; durationMs?: number; feedback?: 'correct' | 'partially-correct' | 'incorrect'; feedbackReasons?: string[]; feedbackDetails?: string; isRegenerated?: boolean; createdAt?: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -126,6 +127,7 @@ export default function AIStudio3Chat({
         isLoading: false,
         durationMs: m.durationMs,
         feedback: m.feedback,
+        createdAt: m.createdAt,
       }));
       setMessages(convertedMessages);
       setCurrentSessionId(sessionId);
@@ -175,7 +177,7 @@ export default function AIStudio3Chat({
           role: m.role,
           text: m.text,
           files: m.files?.map(f => ({ name: f.name, size: f.size })),
-          createdAt: new Date().toISOString(),
+          createdAt: m.createdAt || new Date().toISOString(),
           durationMs: m.durationMs,
           feedback: m.feedback,
         }));
@@ -210,6 +212,7 @@ export default function AIStudio3Chat({
 
   const appendPresentationMessages = useCallback(
     (items: { role: "user" | "assistant"; text: string }[]) => {
+      const now = new Date().toISOString();
       setMessages((prev) => [
         ...prev,
         ...items.map((item) => ({
@@ -218,6 +221,7 @@ export default function AIStudio3Chat({
             typeof crypto !== "undefined" && crypto.randomUUID
               ? crypto.randomUUID()
               : Math.random().toString(36).slice(2),
+          createdAt: now,
         })),
       ]);
     },
@@ -322,11 +326,13 @@ ${fullAnswer}
     setIsLoading(true);
     
     // Добавляем сообщение пользователя
+    const nowIso = new Date().toISOString();
     const userMsg = {
       id: Math.random().toString(36).slice(2),
       role: 'user' as const,
       text: text || `Прикреплено ${attachedFiles.length} файл(ов)`,
-      files: [...attachedFiles]
+      files: [...attachedFiles],
+      createdAt: nowIso,
     };
     
     const loadingMsgId = Math.random().toString(36).slice(2);
@@ -335,6 +341,7 @@ ${fullAnswer}
       role: 'assistant' as const,
       text: '',
       isLoading: true,
+      createdAt: nowIso,
     };
     
     setMessages(prev => [...prev, userMsg, loadingMsg]);
@@ -395,7 +402,13 @@ ${fullAnswer}
       // Replace loading message with actual response
       setMessages(prev => prev.map(msg => 
         msg.id === loadingMsgId 
-          ? { id: loadingMsgId, role: 'assistant' as const, text: response.content, durationMs }
+          ? {
+              id: loadingMsgId,
+              role: 'assistant' as const,
+              text: response.content,
+              durationMs,
+              createdAt: new Date().toISOString(),
+            }
           : msg
       ));
 
@@ -417,7 +430,12 @@ ${fullAnswer}
       // Replace loading message with error message
       setMessages(prev => prev.map(msg => 
         msg.id === loadingMsgId 
-          ? { id: loadingMsgId, role: 'assistant' as const, text: `Ошибка: ${error.message || 'Не удалось получить ответ от AI'}` }
+          ? {
+              id: loadingMsgId,
+              role: 'assistant' as const,
+              text: `Ошибка: ${error.message || 'Не удалось получить ответ от AI'}`,
+              createdAt: new Date().toISOString(),
+            }
           : msg
       ));
       
@@ -495,36 +513,52 @@ ${fullAnswer}
                   </div>
                 ) : (
                   <div className="space-y-4 pb-24">
-                    {messages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={msg.role === 'user' ? 'flex justify-end' : ''}
-                      >
-                        <MessageBubble
-                          text={msg.text}
-                          role={msg.role}
-                          messageId={msg.id}
-                          isLoading={msg.isLoading}
-                          files={msg.files?.map(f => ({ name: f.name, type: f.type }))}
-                          feedback={msg.feedback}
-                          feedbackDetails={msg.feedbackDetails}
-                          onCopy={msg.role === 'assistant' ? () => handleCopy(msg.id) : undefined}
-                          onFeedbackChange={(value, reasons, details) => {
-                            if (msg.role !== 'assistant') return;
-                            setMessages(prev => prev.map(m => 
-                              m.id === msg.id 
-                                ? { 
-                                    ...m, 
-                                    feedback: value || undefined,
-                                    feedbackReasons: reasons,
-                                    feedbackDetails: details || "",
-                                  } 
-                                : m
-                            ));
-                          }}
-                        />
-                      </div>
-                    ))}
+                    {messages.map((msg, index) => {
+                      const dayKey = msg.createdAt ? getDayKey(msg.createdAt) : "";
+                      const prevDayKey =
+                        index > 0 && messages[index - 1].createdAt
+                          ? getDayKey(messages[index - 1].createdAt!)
+                          : "";
+                      const showDate = Boolean(dayKey && dayKey !== prevDayKey);
+
+                      return (
+                        <div key={msg.id}>
+                          {showDate && msg.createdAt && (
+                            <div className="flex justify-center my-3">
+                              <span className="text-[11px] font-medium text-muted-foreground/80 px-2.5 py-1 rounded-full bg-muted/70">
+                                {formatChatDateLabel(msg.createdAt)}
+                              </span>
+                            </div>
+                          )}
+                          <div className={msg.role === 'user' ? 'flex justify-end' : ''}>
+                            <MessageBubble
+                              text={msg.text}
+                              role={msg.role}
+                              messageId={msg.id}
+                              isLoading={msg.isLoading}
+                              createdAt={msg.createdAt}
+                              files={msg.files?.map(f => ({ name: f.name, type: f.type }))}
+                              feedback={msg.feedback}
+                              feedbackDetails={msg.feedbackDetails}
+                              onCopy={msg.role === 'assistant' ? () => handleCopy(msg.id) : undefined}
+                              onFeedbackChange={(value, reasons, details) => {
+                                if (msg.role !== 'assistant') return;
+                                setMessages(prev => prev.map(m => 
+                                  m.id === msg.id 
+                                    ? { 
+                                        ...m, 
+                                        feedback: value || undefined,
+                                        feedbackReasons: reasons,
+                                        feedbackDetails: details || "",
+                                      } 
+                                    : m
+                                ));
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                     {isPresentationAgent && (
                       <PresentationAgentPanel
                         key={currentSessionId ?? "presentation-draft"}

@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { sendChatMessage } from "@/shared/services/ai.service.ts";
 import { useToast } from "@/shared/components/Toast";
 import { MessageBubble } from "@/components/chat/MessageBubble";
+import { formatChatDateLabel, getDayKey } from "@/lib/chat-time";
 import { Disclaimer } from "@/components/chat/Disclaimer";
 import { FileDropOverlay } from "@/components/chat/FileDropOverlay";
 import { Modal } from "@/shared/components/Modal";
@@ -93,7 +94,7 @@ export default function Dashboard() {
   const examplePrompts = ["Создайте ИИ-агента для анализа документов и извлечения ключевой информации", "Разработайте чат-бота для обработки клиентских запросов с использованием NLP", "Настройте модель машинного обучения для прогнозирования трендов продаж", "Интегрируйте API для обработки естественного языка в существующую систему", "Создайте автоматизированную систему классификации и тегирования контента", "Разработайте рекомендательную систему на основе поведения пользователей"];
   const [currentPrompt, setCurrentPrompt] = useState(0);
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; text: string; files?: File[]; isLoading?: boolean; feedback?: 'correct' | 'partially-correct' | 'incorrect'; feedbackDetails?: string; isRegenerated?: boolean }[]>([]);
+  const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; text: string; files?: File[]; isLoading?: boolean; feedback?: 'correct' | 'partially-correct' | 'incorrect'; feedbackDetails?: string; isRegenerated?: boolean; createdAt?: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -173,9 +174,10 @@ export default function Dashboard() {
     setIsLoading(true);
     
     // Add user message immediately
-    const userMsg = { id: Math.random().toString(36).slice(2), role: 'user' as const, text: displayText, files: [...attachedFiles] };
+    const nowIso = new Date().toISOString();
+    const userMsg = { id: Math.random().toString(36).slice(2), role: 'user' as const, text: displayText, files: [...attachedFiles], createdAt: nowIso };
     const loadingMsgId = Math.random().toString(36).slice(2);
-    const loadingMsg = { id: loadingMsgId, role: 'assistant' as const, text: '', isLoading: true };
+    const loadingMsg = { id: loadingMsgId, role: 'assistant' as const, text: '', isLoading: true, createdAt: nowIso };
     
     const filesToSend = [...attachedFiles];
     setMessages(prev => [...prev, userMsg, loadingMsg]);
@@ -220,7 +222,7 @@ export default function Dashboard() {
       // Replace loading message with actual response
       setMessages(prev => prev.map(msg => 
         msg.id === loadingMsgId 
-          ? { id: loadingMsgId, role: 'assistant' as const, text: response.content || 'Пустой ответ от AI' }
+          ? { id: loadingMsgId, role: 'assistant' as const, text: response.content || 'Пустой ответ от AI', createdAt: new Date().toISOString() }
           : msg
       ));
       
@@ -232,7 +234,7 @@ export default function Dashboard() {
       const errorMessage = error.message || 'Не удалось получить ответ от AI';
       setMessages(prev => prev.map(msg => 
         msg.id === loadingMsgId 
-          ? { id: loadingMsgId, role: 'assistant' as const, text: `Ошибка: ${errorMessage}` }
+          ? { id: loadingMsgId, role: 'assistant' as const, text: `Ошибка: ${errorMessage}`, createdAt: new Date().toISOString() }
           : msg
       ));
       
@@ -382,35 +384,51 @@ export default function Dashboard() {
 
                   {/* Messages Display */}
                   <div className="space-y-4 pb-24">
-                    {messages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={msg.role === 'user' ? 'flex justify-end' : ''}
-                      >
-                        <MessageBubble
-                          text={msg.text}
-                          role={msg.role}
-                          messageId={msg.id}
-                          isLoading={msg.isLoading}
-                          files={msg.files?.map(f => ({ name: f.name, type: f.type }))}
-                          feedback={msg.feedback}
-                          feedbackDetails={msg.feedbackDetails}
-                          onCopy={msg.role === 'assistant' ? () => handleCopy(msg.id) : undefined}
-                          onFeedbackChange={(value, reasons, details) => {
-                            if (msg.role !== 'assistant') return;
-                            setMessages(prev => prev.map(m => 
-                              m.id === msg.id 
-                                ? { 
-                                    ...m, 
-                                    feedback: value || undefined,
-                                    feedbackDetails: details || ""
-                                  } 
-                                : m
-                            ));
-                          }}
-                        />
-                      </div>
-                    ))}
+                    {messages.map((msg, index) => {
+                      const dayKey = msg.createdAt ? getDayKey(msg.createdAt) : "";
+                      const prevDayKey =
+                        index > 0 && messages[index - 1].createdAt
+                          ? getDayKey(messages[index - 1].createdAt!)
+                          : "";
+                      const showDate = Boolean(dayKey && dayKey !== prevDayKey);
+
+                      return (
+                        <div key={msg.id}>
+                          {showDate && msg.createdAt && (
+                            <div className="flex justify-center my-3">
+                              <span className="text-[11px] font-medium text-muted-foreground/80 px-2.5 py-1 rounded-full bg-muted/70">
+                                {formatChatDateLabel(msg.createdAt)}
+                              </span>
+                            </div>
+                          )}
+                          <div className={msg.role === 'user' ? 'flex justify-end' : ''}>
+                            <MessageBubble
+                              text={msg.text}
+                              role={msg.role}
+                              messageId={msg.id}
+                              isLoading={msg.isLoading}
+                              createdAt={msg.createdAt}
+                              files={msg.files?.map(f => ({ name: f.name, type: f.type }))}
+                              feedback={msg.feedback}
+                              feedbackDetails={msg.feedbackDetails}
+                              onCopy={msg.role === 'assistant' ? () => handleCopy(msg.id) : undefined}
+                              onFeedbackChange={(value, reasons, details) => {
+                                if (msg.role !== 'assistant') return;
+                                setMessages(prev => prev.map(m => 
+                                  m.id === msg.id 
+                                    ? { 
+                                        ...m, 
+                                        feedback: value || undefined,
+                                        feedbackDetails: details || ""
+                                      } 
+                                    : m
+                                ));
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                     <div ref={messagesEndRef} />
                   </div>
                 </>
